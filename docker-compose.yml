@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-local-docker-secret-change-me}
+      JWT_TTL: ${JWT_TTL:-3600}
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN:-*}
+    volumes:
+      # Persist the SQLite database across container restarts.
+      - dbdata:/app/backend/database
+
+volumes:
+  dbdata:

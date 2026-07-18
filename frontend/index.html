@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Product Store Admin</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛍️</text></svg>" />
+</head>
+<body>
+  <!-- ============ Login view ============ -->
+  <section id="login-view" class="auth-wrap hidden">
+    <form id="login-form" class="card auth-card" novalidate>
+      <h1>🛍️ Product Store</h1>
+      <p class="muted">Sign in to manage the product catalog</p>
+
+      <div id="login-error" class="alert alert-error hidden" role="alert"></div>
+
+      <label for="login-email">Email</label>
+      <input id="login-email" name="email" type="email" autocomplete="username"
+             value="admin@example.com" required />
+
+      <label for="login-password">Password</label>
+      <input id="login-password" name="password" type="password" autocomplete="current-password"
+             placeholder="admin123" required />
+
+      <button type="submit" id="login-submit" class="btn btn-primary btn-block">
+        <span class="btn-label">Sign in</span>
+        <span class="spinner hidden"></span>
+      </button>
+
+      <p class="muted small">Demo credentials: admin@example.com / admin123</p>
+    </form>
+  </section>
+
+  <!-- ============ Main app view ============ -->
+  <section id="app-view" class="hidden">
+    <header class="topbar">
+      <div class="topbar-title">🛍️ Product Store <span class="badge">admin</span></div>
+      <div class="topbar-actions">
+        <span id="user-email" class="muted"></span>
+        <button id="logout-btn" class="btn btn-ghost">Log out</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="toolbar card">
+        <div class="toolbar-row">
+          <div class="field grow">
+            <label for="search-input">Search</label>
+            <input id="search-input" type="search" placeholder="Search name, description or SKU…" />
+          </div>
+          <div class="field">
+            <label for="category-filter">Category</label>
+            <select id="category-filter"><option value="">All categories</option></select>
+          </div>
+          <div class="field">
+            <label for="min-price">Min price</label>
+            <input id="min-price" type="number" min="0" step="0.01" placeholder="0.00" />
+          </div>
+          <div class="field">
+            <label for="max-price">Max price</label>
+            <input id="max-price" type="number" min="0" step="0.01" placeholder="999.99" />
+          </div>
+          <div class="field">
+            <label for="sort-select">Sort by</label>
+            <select id="sort-select">
+              <option value="created_at:desc">Newest first</option>
+              <option value="created_at:asc">Oldest first</option>
+              <option value="name:asc">Name A–Z</option>
+              <option value="name:desc">Name Z–A</option>
+              <option value="price:asc">Price low → high</option>
+              <option value="price:desc">Price high → low</option>
+              <option value="stock:asc">Stock low → high</option>
+            </select>
+          </div>
+          <div class="field field-btn">
+            <button id="add-product-btn" class="btn btn-primary">+ Add product</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="list-status" class="list-status hidden"></div>
+
+      <div class="card table-card">
+        <div id="table-loading" class="table-overlay hidden"><span class="spinner dark"></span></div>
+        <table class="product-table">
+          <thead>
+            <tr>
+              <th>Name</th><th>SKU</th><th>Category</th>
+              <th class="num">Price</th><th class="num">Stock</th><th class="actions-col"></th>
+            </tr>
+          </thead>
+          <tbody id="product-tbody"></tbody>
+        </table>
+        <div id="empty-state" class="empty-state hidden">
+          <p>No products match your filters.</p>
+        </div>
+      </div>
+
+      <div class="pagination">
+        <button id="prev-page" class="btn btn-ghost">← Prev</button>
+        <span id="page-info" class="muted"></span>
+        <button id="next-page" class="btn btn-ghost">Next →</button>
+      </div>
+    </main>
+  </section>
+
+  <!-- ============ Product form modal ============ -->
+  <div id="product-modal" class="modal-backdrop hidden">
+    <form id="product-form" class="card modal" novalidate>
+      <h2 id="modal-title">Add product</h2>
+      <div id="form-error" class="alert alert-error hidden" role="alert"></div>
+
+      <div class="form-grid">
+        <div class="field span-2">
+          <label for="f-name">Name *</label>
+          <input id="f-name" name="name" type="text" maxlength="160" required />
+          <span class="field-error" data-for="name"></span>
+        </div>
+        <div class="field">
+          <label for="f-sku">SKU *</label>
+          <input id="f-sku" name="sku" type="text" maxlength="40" placeholder="ELC-0001" required />
+          <span class="field-error" data-for="sku"></span>
+        </div>
+        <div class="field">
+          <label for="f-category">Category *</label>
+          <input id="f-category" name="category" type="text" maxlength="80" list="category-list" required />
+          <datalist id="category-list"></datalist>
+          <span class="field-error" data-for="category"></span>
+        </div>
+        <div class="field">
+          <label for="f-price">Price (USD) *</label>
+          <input id="f-price" name="price" type="number" min="0" step="0.01" required />
+          <span class="field-error" data-for="price"></span>
+        </div>
+        <div class="field">
+          <label for="f-stock">Stock</label>
+          <input id="f-stock" name="stock" type="number" min="0" step="1" value="0" />
+          <span class="field-error" data-for="stock"></span>
+        </div>
+        <div class="field span-2">
+          <label for="f-description">Description</label>
+          <textarea id="f-description" name="description" rows="3" maxlength="2000"></textarea>
+          <span class="field-error" data-for="description"></span>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" id="modal-cancel" class="btn btn-ghost">Cancel</button>
+        <button type="submit" id="modal-save" class="btn btn-primary">
+          <span class="btn-label">Save</span>
+          <span class="spinner hidden"></span>
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ============ Delete confirmation modal ============ -->
+  <div id="delete-modal" class="modal-backdrop hidden">
+    <div class="card modal modal-sm">
+      <h2>Delete product</h2>
+      <p id="delete-message"></p>
+      <div class="modal-actions">
+        <button type="button" id="delete-cancel" class="btn btn-ghost">Cancel</button>
+        <button type="button" id="delete-confirm" class="btn btn-danger">
+          <span class="btn-label">Delete</span>
+          <span class="spinner hidden"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

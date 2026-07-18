@@ -1,0 +1,6 @@
+backend/vendor/
+backend/database/*.sqlite
+backend/.env
+.phpunit.cache/
+config.bat
+node_modules

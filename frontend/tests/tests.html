@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Frontend Unit Tests</title>
+  <style>
+    body { font-family: ui-monospace, Consolas, monospace; background: #0f172a; color: #e2e8f0; padding: 2rem; }
+    h1 { font-size: 1.2rem; }
+    .pass { color: #4ade80; }
+    .fail { color: #f87171; }
+    #summary { margin-top: 1rem; font-weight: bold; font-size: 1.1rem; }
+    li { margin: .25rem 0; }
+  </style>
+</head>
+<body>
+  <h1>Product Store — frontend unit tests</h1>
+  <p>Open this page via the dev server: <code>http://localhost:8000/tests/tests.html</code></p>
+  <ul id="results"></ul>
+  <div id="summary"></div>
+
+  <script type="module">
+    import { debounce, buildQuery, formatPrice, escapeHtml } from '/js/utils.js';
+
+    const results = document.getElementById('results');
+    let passed = 0, failed = 0;
+
+    function report(name, ok, detail = '') {
+      const li = document.createElement('li');
+      li.className = ok ? 'pass' : 'fail';
+      li.textContent = `${ok ? 'PASS' : 'FAIL'} — ${name}${detail ? ` (${detail})` : ''}`;
+      results.appendChild(li);
+      ok ? passed++ : failed++;
+    }
+
+    async function test(name, fn) {
+      try {
+        await fn();
+        report(name, true);
+      } catch (e) {
+        report(name, false, e.message);
+      }
+    }
+
+    function assertEqual(actual, expected) {
+      const a = JSON.stringify(actual), b = JSON.stringify(expected);
+      if (a !== b) throw new Error(`expected ${b}, got ${a}`);
+    }
+
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    /* ---- buildQuery ---- */
+    await test('buildQuery serializes non-empty params', () =>
+      assertEqual(buildQuery({ q: 'mouse', page: 2 }), '?q=mouse&page=2'));
+
+    await test('buildQuery skips empty, null and undefined values', () =>
+      assertEqual(buildQuery({ q: '', category: null, page: undefined, sort: 'price' }), '?sort=price'));
+
+    await test('buildQuery returns empty string when nothing to serialize', () =>
+      assertEqual(buildQuery({ q: '', page: null }), ''));
+
+    await test('buildQuery URL-encodes special characters', () =>
+      assertEqual(buildQuery({ q: 'a&b c' }), '?q=a%26b+c'));
+
+    /* ---- debounce ---- */
+    await test('debounce collapses rapid calls into one', async () => {
+      let calls = 0;
+      const fn = debounce(() => calls++, 50);
+      fn(); fn(); fn();
+      await sleep(120);
+      assertEqual(calls, 1);
+    });
+
+    await test('debounce fires again after quiet period', async () => {
+      let calls = 0;
+      const fn = debounce(() => calls++, 40);
+      fn();
+      await sleep(80);
+      fn();
+      await sleep(80);
+      assertEqual(calls, 2);
+    });
+
+    await test('debounce passes through the latest arguments', async () => {
+      let seen = null;
+      const fn = debounce((v) => { seen = v; }, 30);
+      fn('first'); fn('second');
+      await sleep(70);
+      assertEqual(seen, 'second');
+    });
+
+    /* ---- formatPrice ---- */
+    await test('formatPrice formats USD with two decimals', () =>
+      assertEqual(formatPrice(24.9), '$24.90'));
+
+    await test('formatPrice groups thousands', () =>
+      assertEqual(formatPrice(1249), '$1,249.00'));
+
+    /* ---- escapeHtml ---- */
+    await test('escapeHtml neutralizes script tags', () =>
+      assertEqual(escapeHtml('<script>alert(1)<\/script>'),
+        '&lt;script&gt;alert(1)&lt;/script&gt;'));
+
+    await test('escapeHtml escapes quotes and ampersands', () =>
+      assertEqual(escapeHtml(`Tom & Jerry's "show"`),
+        'Tom &amp; Jerry&#039;s &quot;show&quot;'));
+
+    document.getElementById('summary').textContent =
+      failed === 0 ? `✅ All ${passed} tests passed` : `❌ ${failed} failed, ${passed} passed`;
+    document.getElementById('summary').className = failed === 0 ? 'pass' : 'fail';
+  </script>
+</body>
+</html>

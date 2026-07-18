@@ -1,0 +1,332 @@
+openapi: 3.0.3
+info:
+  title: Product Store API
+  description: |
+    RESTful API for managing an online store's product catalog.
+    All `/products` endpoints require a Bearer JWT obtained from `/auth/login`.
+
+    Demo credentials: `admin@example.com` / `admin123`.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000/api
+    description: Local development
+
+tags:
+  - name: Auth
+  - name: Products
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is up
+          content:
+            application/json:
+              example: { success: true, data: { status: ok, time: "2026-07-18T12:00:00+00:00" } }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate and obtain a JWT
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email, example: admin@example.com }
+                password: { type: string, example: admin123 }
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: object
+                    properties:
+                      token: { type: string }
+                      token_type: { type: string, example: Bearer }
+                      expires_in: { type: integer, example: 3600 }
+                      user: { $ref: '#/components/schemas/User' }
+        '401':
+          $ref: '#/components/responses/InvalidCredentials'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get the authenticated user (token validity check)
+      operationId: me
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: object
+                    properties:
+                      user: { $ref: '#/components/schemas/User' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /products:
+    get:
+      tags: [Products]
+      summary: List products (paginated, searchable, filterable)
+      operationId: listProducts
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: "Case-insensitive substring match on name, description and SKU" }
+        - { name: category, in: query, schema: { type: string }, description: Exact category match }
+        - { name: min_price, in: query, schema: { type: number, minimum: 0 } }
+        - { name: max_price, in: query, schema: { type: number, minimum: 0 } }
+        - { name: in_stock, in: query, schema: { type: boolean }, description: Only products with stock > 0 }
+        - { name: sort, in: query, schema: { type: string, enum: [name, price, stock, category, created_at, updated_at, id], default: created_at } }
+        - { name: order, in: query, schema: { type: string, enum: [asc, desc], default: desc } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: per_page, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 10 } }
+      responses:
+        '200':
+          description: Paginated product list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Product' }
+                  meta: { $ref: '#/components/schemas/PaginationMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Products]
+      summary: Create a product
+      operationId: createProduct
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductInput' }
+      responses:
+        '201':
+          description: Product created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/Product' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/DuplicateSku'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /products/categories:
+    get:
+      tags: [Products]
+      summary: List distinct product categories
+      operationId: listCategories
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Category names
+          content:
+            application/json:
+              example: { success: true, data: { categories: [Books, Clothing, Electronics] } }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /products/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      tags: [Products]
+      summary: Get a single product
+      operationId: getProduct
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: The product
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/Product' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Products]
+      summary: Update a product (partial — only provided fields change)
+      operationId: updateProduct
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductPatch' }
+      responses:
+        '200':
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/Product' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/DuplicateSku' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    patch:
+      tags: [Products]
+      summary: Alias of PUT (partial update)
+      operationId: patchProduct
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductPatch' }
+      responses:
+        '200': { description: Updated product }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Products]
+      summary: Delete a product
+      operationId: deleteProduct
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Deleted (no content) }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        email: { type: string, example: admin@example.com }
+        name: { type: string, example: Store Admin }
+
+    Product:
+      type: object
+      properties:
+        id: { type: integer, example: 1 }
+        name: { type: string, example: Wireless Mouse }
+        sku: { type: string, example: ELC-0001 }
+        description: { type: string, example: Ergonomic 2.4GHz wireless mouse. }
+        price: { type: number, format: float, example: 24.99 }
+        category: { type: string, example: Electronics }
+        stock: { type: integer, example: 120 }
+        created_at: { type: string, example: "2026-07-18 09:25:47" }
+        updated_at: { type: string, example: "2026-07-18 09:25:47" }
+
+    ProductInput:
+      type: object
+      required: [name, sku, price, category]
+      properties:
+        name: { type: string, maxLength: 160 }
+        sku: { type: string, maxLength: 40, pattern: '^[A-Za-z0-9][A-Za-z0-9\-_.]*$', description: Normalized to uppercase; must be unique }
+        description: { type: string, maxLength: 2000, default: '' }
+        price: { type: number, minimum: 0, maximum: 1000000 }
+        category: { type: string, maxLength: 80 }
+        stock: { type: integer, minimum: 0, maximum: 1000000, default: 0 }
+
+    ProductPatch:
+      type: object
+      description: Any subset of ProductInput fields.
+      properties:
+        name: { type: string, maxLength: 160 }
+        sku: { type: string, maxLength: 40 }
+        description: { type: string, maxLength: 2000 }
+        price: { type: number, minimum: 0 }
+        category: { type: string, maxLength: 80 }
+        stock: { type: integer, minimum: 0 }
+
+    PaginationMeta:
+      type: object
+      properties:
+        page: { type: integer, example: 1 }
+        per_page: { type: integer, example: 10 }
+        total: { type: integer, example: 25 }
+        total_pages: { type: integer, example: 3 }
+        has_next: { type: boolean, example: true }
+        has_prev: { type: boolean, example: false }
+
+    Error:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        error:
+          type: object
+          properties:
+            code: { type: string, example: VALIDATION_ERROR }
+            message: { type: string, example: Validation failed. }
+            details:
+              type: object
+              additionalProperties: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Missing, invalid or expired token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { success: false, error: { code: UNAUTHORIZED, message: "Missing Bearer token. Log in via POST /api/auth/login." } }
+    InvalidCredentials:
+      description: Wrong email or password
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { success: false, error: { code: INVALID_CREDENTIALS, message: Invalid email or password. } }
+    NotFound:
+      description: Resource does not exist
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { success: false, error: { code: NOT_FOUND, message: Product not found. } }
+    DuplicateSku:
+      description: SKU already in use
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { success: false, error: { code: DUPLICATE_SKU, message: A product with this SKU already exists., details: { sku: SKU must be unique. } } }
+    ValidationError:
+      description: Invalid input
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { success: false, error: { code: VALIDATION_ERROR, message: Validation failed., details: { price: Price cannot be negative. } } }
